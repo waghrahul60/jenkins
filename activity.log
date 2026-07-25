@@ -1,0 +1,4 @@
+# Activity Log
+
+Tracks automated daily activity commits.
+This file is updated by the GitHub Actions workflow `.github/workflows/daily-commit.yml`.

@@ -1,0 +1,70 @@
+name: Daily Activity Commit
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Schedule:  Mon–Fri, every hour from 9 AM to 10 PM IST
+#            IST = UTC+5:30, so 9:00 IST = 03:30 UTC, 22:00 IST = 16:30 UTC
+#            Cron fires at :30 each hour between UTC 03 and 16  → IST 09–22
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  schedule:
+    - cron: '30 3-16 * * 1-5'   # Mon–Fri, 03:30–16:30 UTC (09:00–22:00 IST)
+  workflow_dispatch:              # Keep for manual testing
+
+permissions:
+  contents: write
+
+jobs:
+  daily-commit:
+    name: Commit Gate → Maybe Commit
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          # Use a PAT stored as secret PAT_TOKEN for push rights;
+          # falls back to built-in GITHUB_TOKEN if secret is absent.
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+
+      # ── 2. Python runtime ─────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ── 3. Gate: should we commit today / this hour? ──────────────────────
+      - name: Run commit gate
+        id: gate
+        run: |
+          if python .github/scripts/commit_gate.py; then
+            echo "proceed=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── 4. Update activity log (only when gate passes) ────────────────────
+      - name: Update activity.log
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          IST_TIME=$(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M:%S IST')
+          echo "${IST_TIME} — activity" >> activity.log
+
+      # ── 5. Commit & push ──────────────────────────────────────────────────
+      - name: Commit and push
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add activity.log
+          # Amend if there's already a commit today to avoid log spam
+          TODAY=$(TZ='Asia/Kolkata' date '+%Y-%m-%d')
+          LAST_MSG=$(git log -1 --pretty=%s 2>/dev/null || true)
+          if echo "$LAST_MSG" | grep -q "chore: daily activity ${TODAY}"; then
+            git commit --amend --no-edit
+            git push --force-with-lease origin main
+          else
+            git commit -m "chore: daily activity ${TODAY}"
+            git push origin main
+          fi
