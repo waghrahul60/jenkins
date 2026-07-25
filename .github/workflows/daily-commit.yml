@@ -37,6 +37,9 @@ jobs:
       # ── 3. Gate: should we commit today / this hour? ──────────────────────
       - name: Run commit gate
         id: gate
+        env:
+          # 'schedule' for cron runs, 'workflow_dispatch' for manual runs
+          TRIGGER_EVENT: ${{ github.event_name }}
         run: |
           if python .github/scripts/commit_gate.py; then
             echo "proceed=true"  >> "$GITHUB_OUTPUT"

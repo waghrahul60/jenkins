@@ -25,6 +25,7 @@ Exit codes
 """
 
 import sys
+import os
 import random
 import datetime
 import zoneinfo
@@ -84,12 +85,17 @@ def should_commit(now: datetime.datetime | None = None) -> tuple[bool, str]:
     if now is None:
         now = datetime.datetime.now(tz=IST)
 
+    # Whether the workflow was triggered manually or by cron
+    is_manual = os.environ.get("TRIGGER_EVENT", "schedule") == "workflow_dispatch"
+
     iso_year, iso_week, _ = now.isocalendar()
     weekday = now.weekday()   # 0=Mon … 6=Sun
 
-    # ── Weekend check ─────────────────────────────────────────────────────
-    if weekday > 4:
-        return False, f"Weekend ({now.strftime('%A')}) — skipping"
+    # ── Weekend check (skip only for scheduled/auto runs) ──────────────────
+    if weekday > 4 and not is_manual:
+        return False, f"Weekend ({now.strftime('%A')}) — skipping (auto run)"
+    elif weekday > 4 and is_manual:
+        return True, f"Weekend ({now.strftime('%A')}) — allowed because manually triggered"
 
     # ── Break-day check ───────────────────────────────────────────────────
     break_days = get_break_days(iso_year, iso_week)
