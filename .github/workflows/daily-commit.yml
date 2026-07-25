@@ -58,13 +58,15 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add activity.log
-          # Amend if there's already a commit today to avoid log spam
+          # Build timestamp: e.g. 2026-07-25 14:32 IST
+          DATETIME=$(TZ='Asia/Kolkata' date '+%Y-%m-%d %H:%M IST')
           TODAY=$(TZ='Asia/Kolkata' date '+%Y-%m-%d')
           LAST_MSG=$(git log -1 --pretty=%s 2>/dev/null || true)
           if echo "$LAST_MSG" | grep -q "chore: daily activity ${TODAY}"; then
-            git commit --amend --no-edit
+            # Amend with updated timestamp so the message always shows latest time
+            git commit --amend -m "chore: daily activity ${DATETIME}"
             git push --force-with-lease origin main
           else
-            git commit -m "chore: daily activity ${TODAY}"
+            git commit -m "chore: daily activity ${DATETIME}"
             git push origin main
           fi
